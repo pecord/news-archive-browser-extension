@@ -1,0 +1,12 @@
+# Article extraction libraries
+newspaper3k>=0.2.8
+readability-lxml>=0.8.1
+trafilatura>=1.6.0
+goose3>=3.1.17
+
+# HTML parsing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# HTTP requests
+requests>=2.31.0

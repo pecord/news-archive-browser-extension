@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=350">
+  <link rel="stylesheet" href="popup.css">
+  <title>News Archive</title>
+</head>
+<body>
+  <div class="popup">
+    <header>
+      <img src="../icons/icon48.png" alt="" class="logo" width="24" height="24">
+      <h1>News Archive</h1>
+    </header>
+
+    <p id="status" class="status hidden"></p>
+
+    <div id="article-card" class="card hidden">
+      <h2 id="article-title"></h2>
+      <div class="meta">
+        <span id="article-domain" class="domain"></span>
+        <span id="article-words" class="words"></span>
+      </div>
+
+      <button id="archive-btn" class="btn-primary">Archive to IPFS</button>
+      <div id="spinner" class="spinner hidden">Archiving...</div>
+
+      <div id="result" class="result hidden">
+        <p id="result-label">Archived successfully!</p>
+        <a id="result-link" href="#" target="_blank"></a>
+        <button id="copy-link" class="btn-secondary">Copy Link</button>
+      </div>
+
+      <div id="error" class="error hidden">
+        <p id="error-msg"></p>
+        <button id="retry-btn" class="btn-secondary">Retry</button>
+      </div>
+    </div>
+
+    <section class="recent">
+      <h3>Recent Archives</h3>
+      <ul id="recent-list">
+        <li class="empty">No archives yet</li>
+      </ul>
+    </section>
+
+    <footer>
+      <a href="#" id="view-all">View All</a>
+      <a href="#" id="settings">Settings</a>
+    </footer>
+  </div>
+  <script src="../popup.js"></script>
+</body>
+</html>
