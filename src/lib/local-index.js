@@ -8,19 +8,24 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'news-archive';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'articles';
 
 function getDb() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
+    upgrade(db, oldVersion, _newVersion, transaction) {
+      if (oldVersion < 1) {
         const store = db.createObjectStore(STORE_NAME, { keyPath: 'article_id' });
-        store.createIndex('cid', 'cid', { unique: true });
+        store.createIndex('cid', 'cid', { unique: false });
         store.createIndex('content_hash', 'content_hash', { unique: false });
         store.createIndex('url', 'url', { unique: false });
         store.createIndex('archived_at', 'archived_at', { unique: false });
         store.createIndex('title', 'title', { unique: false });
+      }
+      if (oldVersion === 1) {
+        const store = transaction.objectStore(STORE_NAME);
+        store.deleteIndex('cid');
+        store.createIndex('cid', 'cid', { unique: false });
       }
     },
   });

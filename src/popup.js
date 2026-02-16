@@ -64,6 +64,16 @@ async function init() {
     });
   });
 
+  document.getElementById('settings').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.runtime.openOptionsPage();
+  });
+
+  document.getElementById('view-all').addEventListener('click', (e) => {
+    e.preventDefault();
+    chrome.tabs.create({ url: chrome.runtime.getURL('ui/options.html') });
+  });
+
   // --- UI helpers ---
 
   function showStatus(msg) {
@@ -129,11 +139,12 @@ async function init() {
 
       articleWords.textContent = `${extraction.article.content.split(/\s+/).length} words`;
 
-      // Send to background for archiving
+      // Send to background for archiving (include page metadata from content script)
       const result = await chrome.runtime.sendMessage({
         type: 'archiveArticle',
         article: extraction.article,
         url: tab.url,
+        metadata: extraction.metadata,
       });
 
       spinner.classList.add('hidden');

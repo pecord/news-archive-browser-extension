@@ -131,13 +131,16 @@ export function extractMetadata(doc, url) {
 
 /**
  * Generate a fingerprint for an extracted article.
+ * Output structure aligns with the Python article_fingerprinter library.
  *
  * @param {object} article - Extracted article with at least { content, title }
  * @param {string} url - The article URL
- * @param {Document} [doc] - Optional document for metadata extraction
- * @returns {Promise<object>} Fingerprint result
+ * @param {object} [pageMetadata] - Pre-extracted metadata from the content script
+ * @returns {Promise<object>} Fingerprint result matching original repo structure
  */
-export async function generateFingerprint(article, url, doc) {
+export async function generateFingerprint(article, url, pageMetadata) {
+  const startTime = Date.now();
+
   // Apply quirks normalization
   const processedText = processAllLayers(article.content, 'readability', url);
   if (!processedText) {
@@ -147,15 +150,22 @@ export async function generateFingerprint(article, url, doc) {
   // Content hash
   const contentHash = await sha256(processedText);
 
-  // Metadata for article ID
-  let metadata = { canonical_url: url, publish_date: '', title: article.title || '' };
-  if (doc) {
-    metadata = extractMetadata(doc, url);
-  }
+  // Build full metadata — use page-extracted metadata if available, fill gaps
+  const metadata = {
+    url,
+    canonical_url: pageMetadata?.canonical_url || getCanonicalUrl(url),
+    title: pageMetadata?.title || article.title || 'Unknown',
+    authors: pageMetadata?.authors || [],
+    publish_date: pageMetadata?.publish_date || extractPublishDate(url) || null,
+    modified_date: pageMetadata?.modified_date || null,
+    has_schema_org: pageMetadata?.has_schema_org || false,
+    has_opengraph: pageMetadata?.has_opengraph || false,
+    has_canonical: pageMetadata?.has_canonical || false,
+  };
 
-  const canonicalUrl = getCanonicalUrl(metadata.canonical_url || url);
-  const publishDate = metadata.publish_date || extractPublishDate(url);
-  const title = metadata.title || article.title || '';
+  const canonicalUrl = getCanonicalUrl(metadata.canonical_url);
+  const publishDate = metadata.publish_date || '';
+  const title = metadata.title;
 
   // Article ID: first 16 hex chars of SHA-256(canonical_url|publish_date|title)
   const articleIdSource = `${canonicalUrl}|${publishDate}|${title}`;
@@ -165,12 +175,17 @@ export async function generateFingerprint(article, url, doc) {
   const words = processedText.split(/\s+/).filter(Boolean);
 
   return {
-    article_id: articleId,
-    content_hash: contentHash,
-    word_count: words.length,
-    char_count: processedText.length,
-    version: '1.0',
+    fingerprint: {
+      article_id: articleId,
+      content_hash: contentHash,
+      extraction_method: 'readability_with_quirks',
+      word_count: words.length,
+      char_count: processedText.length,
+      version: '1.0',
+    },
     metadata,
     processed_text: processedText,
+    processing_time_ms: Date.now() - startTime,
+    extracted_at: new Date().toISOString(),
   };
 }

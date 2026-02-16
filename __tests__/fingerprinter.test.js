@@ -100,27 +100,75 @@ describe('fingerprint stability', () => {
 });
 
 describe('generateFingerprint', () => {
-  test('returns expected shape', async () => {
+  test('returns nested structure matching original repo', async () => {
     const article = {
       title: 'Test Article Title Here',
       content: 'This is a sufficiently long article for testing purposes. '.repeat(10),
     };
-    const fp = await generateFingerprint(article, 'https://example.com/2024/03/15/test');
+    const result = await generateFingerprint(article, 'https://example.com/2024/03/15/test');
+
+    // Top-level shape
+    expect(result).toHaveProperty('fingerprint');
+    expect(result).toHaveProperty('metadata');
+    expect(result).toHaveProperty('processed_text');
+    expect(result).toHaveProperty('processing_time_ms');
+    expect(result).toHaveProperty('extracted_at');
+
+    // Fingerprint fields
+    const fp = result.fingerprint;
     expect(fp).toHaveProperty('article_id');
     expect(fp).toHaveProperty('content_hash');
+    expect(fp).toHaveProperty('extraction_method', 'readability_with_quirks');
     expect(fp).toHaveProperty('word_count');
     expect(fp).toHaveProperty('char_count');
     expect(fp).toHaveProperty('version', '1.0');
     expect(fp.article_id).toHaveLength(16);
     expect(fp.content_hash).toMatch(/^[a-f0-9]{64}$/);
+
+    // Metadata fields
+    const meta = result.metadata;
+    expect(meta).toHaveProperty('url');
+    expect(meta).toHaveProperty('canonical_url');
+    expect(meta).toHaveProperty('title', 'Test Article Title Here');
+    expect(meta).toHaveProperty('authors');
+    expect(meta).toHaveProperty('publish_date', '2024-03-15');
+    expect(meta).toHaveProperty('modified_date');
+    expect(meta).toHaveProperty('has_schema_org');
+    expect(meta).toHaveProperty('has_opengraph');
+    expect(meta).toHaveProperty('has_canonical');
   });
 
   test('article_id is stable for same inputs', async () => {
     const article = { title: 'Stable Title', content: 'Some article content here.' };
     const url = 'https://example.com/2024/03/15/test';
-    const fp1 = await generateFingerprint(article, url);
-    const fp2 = await generateFingerprint(article, url);
-    expect(fp1.article_id).toBe(fp2.article_id);
-    expect(fp1.content_hash).toBe(fp2.content_hash);
+    const r1 = await generateFingerprint(article, url);
+    const r2 = await generateFingerprint(article, url);
+    expect(r1.fingerprint.article_id).toBe(r2.fingerprint.article_id);
+    expect(r1.fingerprint.content_hash).toBe(r2.fingerprint.content_hash);
+  });
+
+  test('publish_date extracted from URL when no page metadata', async () => {
+    const article = { title: 'Date Test', content: 'Some content here.' };
+    const result = await generateFingerprint(article, 'https://example.com/2026/02/16/story');
+    expect(result.metadata.publish_date).toBe('2026-02-16');
+  });
+
+  test('page metadata is used when provided', async () => {
+    const article = { title: 'Meta Test', content: 'Some content here.' };
+    const pageMeta = {
+      canonical_url: 'https://example.com/canonical',
+      title: 'Override Title',
+      authors: ['Jane Doe'],
+      publish_date: '2026-01-01T00:00:00Z',
+      modified_date: '2026-01-02T00:00:00Z',
+      has_schema_org: true,
+      has_opengraph: true,
+      has_canonical: true,
+    };
+    const result = await generateFingerprint(article, 'https://example.com/story', pageMeta);
+    expect(result.metadata.title).toBe('Override Title');
+    expect(result.metadata.authors).toEqual(['Jane Doe']);
+    expect(result.metadata.publish_date).toBe('2026-01-01T00:00:00Z');
+    expect(result.metadata.has_schema_org).toBe(true);
   });
 });

@@ -6,6 +6,7 @@
  */
 
 import { extractArticle, validateExtraction } from './lib/extractor.js';
+import { extractMetadata } from './lib/fingerprinter.js';
 
 const NEWS_DOMAINS = [
   'nytimes.com', 'theguardian.com', 'washingtonpost.com', 'cnn.com',
@@ -67,7 +68,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'extractArticle') {
     const result = extractArticle(document);
     const valid = validateExtraction(result);
-    sendResponse({ article: result, valid });
+    const metadata = extractMetadata(document, window.location.href);
+    sendResponse({ article: result, valid, metadata });
     return false;
   }
 

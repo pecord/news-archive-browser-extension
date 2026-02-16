@@ -10,6 +10,7 @@ module.exports = (env, argv) => {
       background: './src/background.js',
       content: './src/content.js',
       popup: './src/popup.js',
+      options: './src/options.js',
     },
     output: {
       path: path.resolve(__dirname, 'dist'),
@@ -38,6 +39,7 @@ module.exports = (env, argv) => {
           { from: 'manifest.json', to: '.' },
           { from: 'src/ui/popup.html', to: 'ui/popup.html' },
           { from: 'src/ui/popup.css', to: 'ui/popup.css' },
+          { from: 'src/ui/options.html', to: 'ui/options.html' },
           { from: 'icons', to: 'icons', globOptions: { ignore: ['**/*.js'] } },
         ],
       }),

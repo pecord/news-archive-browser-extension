@@ -54,19 +54,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'getRecentArchives') {
-    localIndex.getAll({ limit: message.limit || 5 }).then(sendResponse);
+    localIndex.getAll({ limit: message.limit || 5 })
+      .then(sendResponse)
+      .catch(() => sendResponse([]));
     return true;
   }
 
   if (message.type === 'getStats') {
-    localIndex.getStats().then(sendResponse);
+    localIndex.getStats()
+      .then(sendResponse)
+      .catch(() => sendResponse({ totalArticles: 0, totalWords: 0, uniqueDomains: 0 }));
     return true;
   }
 
   if (message.type === 'checkDuplicate') {
-    localIndex.findByUrl(message.url).then((existing) => {
-      sendResponse({ exists: !!existing, record: existing || null });
-    });
+    localIndex.findByUrl(message.url)
+      .then((existing) => sendResponse({ exists: !!existing, record: existing || null }))
+      .catch(() => sendResponse({ exists: false, record: null }));
     return true;
   }
 
@@ -86,7 +90,7 @@ async function handleArchiveRequest(tabId) {
   });
 }
 
-async function handleArchive({ article, url }) {
+async function handleArchive({ article, url, metadata: pageMetadata }) {
   try {
     // Check for duplicate
     const existing = await localIndex.findByUrl(url);
@@ -94,8 +98,9 @@ async function handleArchive({ article, url }) {
       return { success: true, duplicate: true, record: existing };
     }
 
-    // Generate fingerprint
-    const fingerprint = await generateFingerprint(article, url);
+    // Generate fingerprint (pass page-extracted metadata from content script)
+    const result = await generateFingerprint(article, url, pageMetadata);
+    const { fingerprint, metadata } = result;
 
     // Check if content hash already exists
     const hashDup = await localIndex.findByHash(fingerprint.content_hash);
@@ -107,20 +112,33 @@ async function handleArchive({ article, url }) {
     let ipfsResult = null;
     const { settings } = await chrome.storage.local.get('settings');
     if (settings?.web3StorageApiKey) {
-      ipfsResult = await uploadToIPFS(fingerprint, settings.web3StorageApiKey);
+      ipfsResult = await uploadToIPFS(
+        { ...fingerprint, metadata, processed_text: result.processed_text },
+        settings.web3StorageApiKey,
+      );
     }
 
-    // Save to local index
+    // Save to local index — nested structure matching original repo
     const record = {
       article_id: fingerprint.article_id,
       content_hash: fingerprint.content_hash,
-      url,
-      title: article.title || fingerprint.metadata?.title || '',
-      word_count: fingerprint.word_count,
-      char_count: fingerprint.char_count,
+      url: metadata.url,
+      title: metadata.title,
+      fingerprint: {
+        article_id: fingerprint.article_id,
+        content_hash: fingerprint.content_hash,
+        extraction_method: fingerprint.extraction_method,
+        word_count: fingerprint.word_count,
+        char_count: fingerprint.char_count,
+        version: fingerprint.version,
+      },
+      metadata,
       cid: ipfsResult?.cid || null,
       gateway_url: ipfsResult?.gatewayUrl || null,
-      metadata: fingerprint.metadata,
+      word_count: fingerprint.word_count,
+      char_count: fingerprint.char_count,
+      processing_time_ms: result.processing_time_ms,
+      extracted_at: result.extracted_at,
     };
     await localIndex.add(record);
 

@@ -22,6 +22,10 @@
       "run_at": "document_idle"
     }
   ],
+  "options_ui": {
+    "page": "ui/options.html",
+    "open_in_tab": true
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

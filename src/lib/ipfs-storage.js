@@ -16,21 +16,26 @@ import { Web3Storage } from 'web3.storage';
 export async function uploadToIPFS(article, apiKey) {
   const client = new Web3Storage({ token: apiKey });
 
+  const fp = article.article_id ? article : article.fingerprint || {};
+  const meta = article.metadata || {};
+
   const manifest = {
     version: '1.0',
     schema: 'news-archive-article',
     fingerprint: {
-      article_id: article.article_id,
-      content_hash: article.content_hash,
-      word_count: article.word_count,
-      char_count: article.char_count,
+      article_id: fp.article_id,
+      content_hash: fp.content_hash,
+      extraction_method: fp.extraction_method || 'readability_with_quirks',
+      word_count: fp.word_count,
+      char_count: fp.char_count,
     },
     metadata: {
-      title: article.metadata?.title || '',
-      url: article.metadata?.url || '',
-      canonical_url: article.metadata?.canonical_url || '',
-      authors: article.metadata?.authors || [],
-      publish_date: article.metadata?.publish_date || '',
+      title: meta.title || '',
+      url: meta.url || '',
+      canonical_url: meta.canonical_url || '',
+      authors: meta.authors || [],
+      publish_date: meta.publish_date || '',
+      modified_date: meta.modified_date || '',
       archived_at: new Date().toISOString(),
     },
     content: {
@@ -41,7 +46,7 @@ export async function uploadToIPFS(article, apiKey) {
   const blob = new Blob([JSON.stringify(manifest, null, 2)], {
     type: 'application/json',
   });
-  const file = new File([blob], `${article.article_id}.json`);
+  const file = new File([blob], `${fp.article_id}.json`);
   const cid = await client.put([file], {
     name: `news-archive-${article.article_id}`,
     wrapWithDirectory: false,
