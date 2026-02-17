@@ -1,14 +1,15 @@
 /**
  * IPFS Storage Module
  *
- * Handles uploading archived articles to IPFS via Pinata.
- * https://docs.pinata.cloud/api-reference
+ * Handles uploading archived articles to IPFS via Pinata v3 API.
+ * https://docs.pinata.cloud/files/uploading-files
  */
 
-const PINATA_API = 'https://api.pinata.cloud';
+const PINATA_UPLOAD_API = 'https://uploads.pinata.cloud/v3';
+const PINATA_API = 'https://api.pinata.cloud/v3';
 
 /**
- * Upload an archived article manifest to IPFS via Pinata.
+ * Upload an archived article manifest to IPFS via Pinata v3.
  *
  * @param {object} article - Article data including fingerprint and metadata
  * @param {string} jwt - Pinata JWT token
@@ -42,18 +43,22 @@ export async function uploadToIPFS(article, jwt) {
     },
   };
 
-  const resp = await fetch(`${PINATA_API}/pinning/pinJSONToIPFS`, {
+  // v3 API uses multipart/form-data with a File object
+  const json = JSON.stringify(manifest, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const file = new File([blob], `${fp.article_id}.json`, { type: 'application/json' });
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('network', 'public');
+  formData.append('name', `news-archive-${fp.article_id}`);
+
+  const resp = await fetch(`${PINATA_UPLOAD_API}/files`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${jwt}`,
     },
-    body: JSON.stringify({
-      pinataContent: manifest,
-      pinataMetadata: {
-        name: `news-archive-${fp.article_id}`,
-      },
-    }),
+    body: formData,
     signal: AbortSignal.timeout(15000),
   });
 
@@ -63,23 +68,23 @@ export async function uploadToIPFS(article, jwt) {
   }
 
   const data = await resp.json();
-  const cid = data.IpfsHash;
+  const cid = data.data?.cid;
 
   return {
     cid,
     gatewayUrl: `https://gateway.pinata.cloud/ipfs/${cid}`,
-    size: data.PinSize || 0,
+    size: data.data?.size || blob.size,
   };
 }
 
 /**
- * Test a Pinata JWT by hitting the auth test endpoint.
+ * Test a Pinata JWT by listing files (lightweight v3 call).
  * @param {string} jwt - Pinata JWT token
  * @returns {Promise<boolean>}
  */
 export async function testConnection(jwt) {
   try {
-    const resp = await fetch(`${PINATA_API}/data/testAuthentication`, {
+    const resp = await fetch(`${PINATA_API}/files?limit=1`, {
       headers: { Authorization: `Bearer ${jwt}` },
       signal: AbortSignal.timeout(8000),
     });

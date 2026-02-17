@@ -93,11 +93,11 @@ async function init() {
 }
 
 /**
- * Test a Pinata JWT by hitting their auth test endpoint.
+ * Test a Pinata JWT via the v3 API.
  */
 async function testApiKey(token) {
   try {
-    const resp = await fetch('https://api.pinata.cloud/data/testAuthentication', {
+    const resp = await fetch('https://api.pinata.cloud/v3/files?limit=1', {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(8000),
     });

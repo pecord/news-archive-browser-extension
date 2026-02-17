@@ -67,28 +67,52 @@ export function extractMetadata(doc, url) {
     has_canonical: false,
   };
 
-  // Schema.org JSON-LD
+  // Schema.org JSON-LD — handle arrays, @graph, and nested structures
   const ldScripts = doc.querySelectorAll('script[type="application/ld+json"]');
   for (const script of ldScripts) {
     try {
-      const data = JSON.parse(script.textContent);
-      if (data && typeof data === 'object' && String(data['@type'] || '').includes('Article')) {
+      let parsed = JSON.parse(script.textContent);
+      // Flatten: could be an array, or contain @graph
+      const items = [];
+      if (Array.isArray(parsed)) {
+        items.push(...parsed);
+      } else if (parsed && typeof parsed === 'object') {
+        items.push(parsed);
+        if (Array.isArray(parsed['@graph'])) {
+          items.push(...parsed['@graph']);
+        }
+      }
+      for (const data of items) {
+        if (!data || typeof data !== 'object') continue;
+        if (!String(data['@type'] || '').includes('Article')) continue;
         metadata.has_schema_org = true;
         metadata.title = metadata.title || data.headline || null;
         metadata.publish_date = metadata.publish_date || data.datePublished || null;
         metadata.modified_date = metadata.modified_date || data.dateModified || null;
 
         const author = data.author;
-        if (author && typeof author === 'object' && !Array.isArray(author)) {
+        if (typeof author === 'string') {
+          metadata.authors.push(author);
+        } else if (author && typeof author === 'object' && !Array.isArray(author)) {
           if (author.name) metadata.authors.push(author.name);
         } else if (Array.isArray(author)) {
           for (const a of author) {
-            if (a && a.name) metadata.authors.push(a.name);
+            if (typeof a === 'string') metadata.authors.push(a);
+            else if (a && a.name) metadata.authors.push(a.name);
           }
         }
       }
     } catch {
       continue;
+    }
+  }
+
+  // Also check meta author tags
+  if (metadata.authors.length === 0) {
+    const authorMeta = doc.querySelector('meta[name="author"]');
+    if (authorMeta) {
+      const name = authorMeta.getAttribute('content');
+      if (name) metadata.authors.push(name);
     }
   }
 
@@ -120,6 +144,15 @@ export function extractMetadata(doc, url) {
   if (!metadata.title) {
     const titleTag = doc.querySelector('title');
     metadata.title = titleTag ? titleTag.textContent : 'Unknown';
+  }
+
+  // Clean title: strip common site name suffixes (e.g. "| CNN", "- NYT")
+  if (metadata.title) {
+    metadata.title = metadata.title
+      .replace(/\s*[\|–—-]\s*(?:CNN|Fox News|BBC|Reuters|AP|NPR|NBC|CBS|ABC)[\w\s]*$/i, '')
+      .replace(/\s*[\|–—-]\s*(?:The (?:New York Times|Washington Post|Guardian|Atlantic|Verge|Hill)).*$/i, '')
+      .replace(/\s*[\|–—-]\s*(?:POLITICO|Axios|Vox|Slate|Wired|Ars Technica).*$/i, '')
+      .trim();
   }
 
   // Fallback publish date from URL
