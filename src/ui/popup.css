@@ -219,6 +219,10 @@ footer a:hover {
   color: #2563eb;
 }
 
+.error-text {
+  color: #dc2626 !important;
+}
+
 /* Utility */
 .hidden {
   display: none !important;

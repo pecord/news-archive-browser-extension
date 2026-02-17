@@ -49,7 +49,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'archiveArticle') {
-    handleArchive(message).then(sendResponse);
+    handleArchive(message)
+      .then(sendResponse)
+      .catch((err) => sendResponse({ success: false, error: err.message || String(err) }));
     return true; // async response
   }
 
@@ -108,14 +110,19 @@ async function handleArchive({ article, url, metadata: pageMetadata }) {
       return { success: true, duplicate: true, record: hashDup };
     }
 
-    // Upload to IPFS
+    // Upload to IPFS (non-fatal — always save locally even if upload fails)
     let ipfsResult = null;
+    let ipfsError = null;
     const { settings } = await chrome.storage.local.get('settings');
     if (settings?.web3StorageApiKey) {
-      ipfsResult = await uploadToIPFS(
-        { ...fingerprint, metadata, processed_text: result.processed_text },
-        settings.web3StorageApiKey,
-      );
+      try {
+        ipfsResult = await uploadToIPFS(
+          { ...fingerprint, metadata, processed_text: result.processed_text },
+          settings.web3StorageApiKey,
+        );
+      } catch (err) {
+        ipfsError = err.message || String(err);
+      }
     }
 
     // Save to local index — nested structure matching original repo
@@ -142,7 +149,7 @@ async function handleArchive({ article, url, metadata: pageMetadata }) {
     };
     await localIndex.add(record);
 
-    return { success: true, duplicate: false, record };
+    return { success: true, duplicate: false, record, ipfsError };
   } catch (err) {
     return { success: false, error: err.message };
   }

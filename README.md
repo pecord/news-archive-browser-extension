@@ -9,7 +9,7 @@ A Chrome extension that archives news articles to IPFS (decentralized, permanent
 3. Article is extracted, fingerprinted, and uploaded to IPFS
 4. You get a permanent, decentralized link
 
-The extension uses [Readability.js](https://github.com/mozilla/readability) for article extraction, SHA-256 content fingerprinting (via SubtleCrypto), and [Web3.Storage](https://web3.storage) for IPFS uploads. All archived articles are also stored locally in IndexedDB.
+The extension uses [Readability.js](https://github.com/mozilla/readability) for article extraction, SHA-256 content fingerprinting (via SubtleCrypto), and [Pinata](https://web3.storage) for IPFS uploads. All archived articles are also stored locally in IndexedDB.
 
 ## Development
 
@@ -31,7 +31,7 @@ npm run dev       # webpack watch mode
 
 ## IPFS Upload
 
-To upload to IPFS, you need a [Web3.Storage](https://web3.storage) API key. Without one, articles are still fingerprinted and saved locally.
+To upload to IPFS, you need a [Pinata](https://pinata.cloud) API key (free tier available). Without one, articles are still fingerprinted and saved locally. Configure your JWT token in the extension's Settings page.
 
 ## Project Structure
 
@@ -41,7 +41,7 @@ src/
     quirks.js         # 3-layer text normalization (base → extractor → site)
     extractor.js      # Readability.js article extraction
     fingerprinter.js  # SHA-256 content hashing + metadata extraction
-    ipfs-storage.js   # Web3.Storage IPFS upload
+    ipfs-storage.js   # Pinata IPFS upload
     local-index.js    # IndexedDB local archive
   background.js       # Service worker — archive orchestration
   content.js          # Article detection + extraction

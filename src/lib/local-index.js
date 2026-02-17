@@ -8,27 +8,49 @@
 import { openDB } from 'idb';
 
 const DB_NAME = 'news-archive';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = 'articles';
 
+// Cache the DB promise so we only open once per service worker lifecycle
+let dbPromise = null;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`IndexedDB operation timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 function getDb() {
-  return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion, _newVersion, transaction) {
-      if (oldVersion < 1) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'article_id' });
-        store.createIndex('cid', 'cid', { unique: false });
-        store.createIndex('content_hash', 'content_hash', { unique: false });
-        store.createIndex('url', 'url', { unique: false });
-        store.createIndex('archived_at', 'archived_at', { unique: false });
-        store.createIndex('title', 'title', { unique: false });
-      }
-      if (oldVersion === 1) {
-        const store = transaction.objectStore(STORE_NAME);
-        store.deleteIndex('cid');
-        store.createIndex('cid', 'cid', { unique: false });
-      }
-    },
-  });
+  if (!dbPromise) {
+    dbPromise = withTimeout(
+      openDB(DB_NAME, DB_VERSION, {
+        upgrade(db) {
+          if (db.objectStoreNames.contains(STORE_NAME)) {
+            db.deleteObjectStore(STORE_NAME);
+          }
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'article_id' });
+          store.createIndex('cid', 'cid', { unique: false });
+          store.createIndex('content_hash', 'content_hash', { unique: false });
+          store.createIndex('url', 'url', { unique: false });
+          store.createIndex('archived_at', 'archived_at', { unique: false });
+          store.createIndex('title', 'title', { unique: false });
+        },
+        blocked() {
+          // Reset cached promise so next call retries
+          dbPromise = null;
+        },
+      }),
+      5000
+    ).catch((err) => {
+      // Reset cached promise so next call retries
+      dbPromise = null;
+      throw err;
+    });
+  }
+  return dbPromise;
 }
 
 /**

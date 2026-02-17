@@ -140,25 +140,42 @@ async function init() {
       articleWords.textContent = `${extraction.article.content.split(/\s+/).length} words`;
 
       // Send to background for archiving (include page metadata from content script)
-      const result = await chrome.runtime.sendMessage({
-        type: 'archiveArticle',
-        article: extraction.article,
-        url: tab.url,
-        metadata: extraction.metadata,
-      });
+      const result = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: 'archiveArticle',
+          article: extraction.article,
+          url: tab.url,
+          metadata: extraction.metadata,
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Archive timed out — check extension service worker console for details')), 10000)
+        ),
+      ]);
 
       spinner.classList.add('hidden');
 
       if (result?.success) {
         resultSection.classList.remove('hidden');
-        document.getElementById('result-label').textContent = 'Archived successfully!';
+
         if (result.record?.gateway_url) {
+          document.getElementById('result-label').textContent = 'Archived to IPFS!';
           resultLink.href = result.record.gateway_url;
           resultLink.textContent = result.record.gateway_url;
-        } else {
+        } else if (result.ipfsError) {
+          document.getElementById('result-label').textContent = 'Saved locally (IPFS upload failed)';
           resultLink.href = '#';
-          resultLink.textContent = 'Saved locally (set IPFS API key in settings for permanent link)';
+          resultLink.textContent = result.ipfsError;
+          resultLink.classList.add('error-text');
+        } else {
+          document.getElementById('result-label').textContent = 'Saved locally';
+          resultLink.href = '#';
+          resultLink.textContent = 'Set an IPFS API key in settings for permanent links';
         }
+
+        if (result.duplicate) {
+          document.getElementById('result-label').textContent = 'Already archived';
+        }
+
         loadRecent();
       } else {
         throw new Error(result?.error || 'Archive failed');

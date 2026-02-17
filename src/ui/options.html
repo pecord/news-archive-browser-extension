@@ -48,6 +48,15 @@
       font-size: 14px; opacity: 0; transition: opacity 0.3s;
     }
     .toast.show { opacity: 1; }
+    .btn-outline {
+      background: #fff; color: #374151; border: 1px solid #d1d5db;
+    }
+    .btn-outline:hover { background: #f3f4f6; }
+    .btn-row { display: flex; gap: 8px; align-items: center; }
+    .test-status { font-size: 13px; margin-top: 8px; }
+    .test-status.success { color: #16a34a; }
+    .test-status.fail { color: #dc2626; }
+    .test-status.pending { color: #6b7280; }
     .stats { display: flex; gap: 24px; }
     .stat-item .num { font-size: 20px; font-weight: 600; }
     .stat-item .label { font-size: 12px; color: #6b7280; }
@@ -59,11 +68,15 @@
 
     <div class="card">
       <h2>IPFS Storage</h2>
-      <p>Connect a Web3.Storage account to upload archived articles to IPFS for permanent, decentralized storage.</p>
-      <label for="api-key">Web3.Storage API Token</label>
-      <input type="password" id="api-key" placeholder="Paste your API token here">
-      <p class="hint">Get a free token at <a href="https://web3.storage" target="_blank">web3.storage</a></p>
-      <button class="btn" id="save-btn">Save</button>
+      <p>Connect a Pinata account to upload archived articles to IPFS for permanent, decentralized storage.</p>
+      <label for="api-key">Pinata JWT Token</label>
+      <input type="password" id="api-key" placeholder="Paste your Pinata JWT here">
+      <p class="hint">Get a free API key at <a href="https://app.pinata.cloud/developers/api-keys" target="_blank">pinata.cloud</a> — create a key with pinning permissions</p>
+      <div class="btn-row">
+        <button class="btn" id="save-btn">Save</button>
+        <button class="btn btn-outline" id="test-btn">Test Connection</button>
+      </div>
+      <div id="test-status" class="test-status"></div>
     </div>
 
     <div class="card">

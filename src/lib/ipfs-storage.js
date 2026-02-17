@@ -1,21 +1,20 @@
 /**
  * IPFS Storage Module
  *
- * Handles uploading archived articles to IPFS via Web3.Storage.
+ * Handles uploading archived articles to IPFS via Pinata.
+ * https://docs.pinata.cloud/api-reference
  */
 
-import { Web3Storage } from 'web3.storage';
+const PINATA_API = 'https://api.pinata.cloud';
 
 /**
- * Upload an archived article manifest to IPFS.
+ * Upload an archived article manifest to IPFS via Pinata.
  *
  * @param {object} article - Article data including fingerprint and metadata
- * @param {string} apiKey - Web3.Storage API token
+ * @param {string} jwt - Pinata JWT token
  * @returns {Promise<object>} Upload result with CID and gateway URL
  */
-export async function uploadToIPFS(article, apiKey) {
-  const client = new Web3Storage({ token: apiKey });
-
+export async function uploadToIPFS(article, jwt) {
   const fp = article.article_id ? article : article.fingerprint || {};
   const meta = article.metadata || {};
 
@@ -43,32 +42,61 @@ export async function uploadToIPFS(article, apiKey) {
     },
   };
 
-  const blob = new Blob([JSON.stringify(manifest, null, 2)], {
-    type: 'application/json',
+  const resp = await fetch(`${PINATA_API}/pinning/pinJSONToIPFS`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${jwt}`,
+    },
+    body: JSON.stringify({
+      pinataContent: manifest,
+      pinataMetadata: {
+        name: `news-archive-${fp.article_id}`,
+      },
+    }),
+    signal: AbortSignal.timeout(15000),
   });
-  const file = new File([blob], `${fp.article_id}.json`);
-  const cid = await client.put([file], {
-    name: `news-archive-${article.article_id}`,
-    wrapWithDirectory: false,
-  });
+
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Pinata upload failed (${resp.status}): ${body}`);
+  }
+
+  const data = await resp.json();
+  const cid = data.IpfsHash;
 
   return {
     cid,
-    gatewayUrl: `https://w3s.link/ipfs/${cid}`,
-    size: blob.size,
+    gatewayUrl: `https://gateway.pinata.cloud/ipfs/${cid}`,
+    size: data.PinSize || 0,
   };
 }
 
 /**
- * Verify an upload by fetching from a gateway and comparing hashes.
- *
- * @param {string} cid - The IPFS CID to verify
- * @param {string} expectedHash - Expected content hash
+ * Test a Pinata JWT by hitting the auth test endpoint.
+ * @param {string} jwt - Pinata JWT token
  * @returns {Promise<boolean>}
+ */
+export async function testConnection(jwt) {
+  try {
+    const resp = await fetch(`${PINATA_API}/data/testAuthentication`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verify an upload by fetching from a gateway and comparing hashes.
  */
 export async function verifyUpload(cid, expectedHash) {
   try {
-    const response = await fetch(`https://w3s.link/ipfs/${cid}`);
+    const response = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`, {
+      signal: AbortSignal.timeout(10000),
+    });
     if (!response.ok) return false;
     const data = await response.json();
     return data.fingerprint?.content_hash === expectedHash;
@@ -82,7 +110,7 @@ export async function verifyUpload(cid, expectedHash) {
  */
 export function getGatewayUrls(cid) {
   return [
-    `https://w3s.link/ipfs/${cid}`,
+    `https://gateway.pinata.cloud/ipfs/${cid}`,
     `https://ipfs.io/ipfs/${cid}`,
     `https://cloudflare-ipfs.com/ipfs/${cid}`,
     `https://dweb.link/ipfs/${cid}`,

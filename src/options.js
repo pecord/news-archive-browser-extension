@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
   const apiKeyInput = document.getElementById('api-key');
   const saveBtn = document.getElementById('save-btn');
+  const testBtn = document.getElementById('test-btn');
+  const testStatus = document.getElementById('test-status');
   const exportBtn = document.getElementById('export-btn');
   const clearBtn = document.getElementById('clear-btn');
 
@@ -21,11 +23,48 @@ async function init() {
 
   // Save API key
   saveBtn.addEventListener('click', async () => {
+    const token = apiKeyInput.value.trim();
     const current = (await chrome.storage.local.get('settings')).settings || {};
     await chrome.storage.local.set({
-      settings: { ...current, web3StorageApiKey: apiKeyInput.value.trim() },
+      settings: { ...current, web3StorageApiKey: token },
     });
-    toast('Settings saved');
+
+    if (token) {
+      testStatus.textContent = 'Saved. Testing connection...';
+      testStatus.className = 'test-status pending';
+      const ok = await testApiKey(token);
+      if (ok) {
+        testStatus.textContent = 'Connected successfully';
+        testStatus.className = 'test-status success';
+      } else {
+        testStatus.textContent = 'Saved, but connection test failed — check your token';
+        testStatus.className = 'test-status fail';
+      }
+    } else {
+      testStatus.textContent = '';
+      testStatus.className = 'test-status';
+      toast('API key cleared');
+    }
+  });
+
+  // Test connection button
+  testBtn.addEventListener('click', async () => {
+    const token = apiKeyInput.value.trim();
+    if (!token) {
+      testStatus.textContent = 'Enter a token first';
+      testStatus.className = 'test-status fail';
+      return;
+    }
+    testStatus.textContent = 'Testing...';
+    testStatus.className = 'test-status pending';
+    const ok = await testApiKey(token);
+    if (ok) {
+      testStatus.textContent = 'Connection successful';
+      testStatus.className = 'test-status success';
+    } else {
+      testStatus.textContent = 'Connection failed — token may be invalid or service unavailable';
+      testStatus.className = 'test-status fail';
+    }
   });
 
   // Export
@@ -44,7 +83,6 @@ async function init() {
   // Clear
   clearBtn.addEventListener('click', async () => {
     if (!confirm('Delete all locally stored archive data? This cannot be undone.')) return;
-    // Clear IndexedDB by deleting the database
     const dbs = await indexedDB.databases();
     for (const db of dbs) {
       if (db.name === 'news-archive') indexedDB.deleteDatabase(db.name);
@@ -52,6 +90,21 @@ async function init() {
     toast('All data cleared');
     loadStats();
   });
+}
+
+/**
+ * Test a Pinata JWT by hitting their auth test endpoint.
+ */
+async function testApiKey(token) {
+  try {
+    const resp = await fetch('https://api.pinata.cloud/data/testAuthentication', {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function loadStats() {
